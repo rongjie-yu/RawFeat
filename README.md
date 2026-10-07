@@ -1,14 +1,14 @@
 # RawFeat：低照度 Raw 特征提取器
 
-RawFeat 从低照度相机的四通道 Bayer Raw 数据中，同时输出关键点和 128 维描述子。它面向这样的场景：图像很暗、噪声很强，但后续任务仍需要稳定的匹配和几何估计。
+RawFeat 从低照度相机的四通道 Bayer Raw 数据中，同时输出关键点和 128 维描述子。项目采用**合成 Raw 数据路线**：先把普通 RGB 图像转换成符合相机数值域的带噪 Raw，再训练网络适应低照度噪声。它面向这样的场景：图像很暗、噪声很强，但后续任务仍需要稳定的匹配和几何估计。
 
-训练时增加一个灰度恢复分支，让共享骨干先学会一部分降噪；部署时融合 RepVGG 多分支并删除灰度分支，所以推理只保留检测和描述子两条路径。
+训练时用冻结的官方 SuperPoint 作为教师，蒸馏它的关键点检测分布；同时用几何对应训练描述子，并增加一个灰度恢复分支，让共享骨干先学会一部分降噪。部署时融合 RepVGG 多分支并删除灰度分支，所以推理只保留检测和描述子两条路径。
 
 当前版本是 **v1**。首版正式训练使用 100000 次更新，首选权重为 [step 96000](weights/v1/checkpoint_step_096000.pt)。在固定 COCO Raw 验证协议上，RawFeat 的五档含噪 H-AUC@5 为 **68.0846%**，MeanAD+SuperPoint 为 **65.6030%**。完整训练曲线、逐对结果和训练身份见 [v1 权重说明](weights/v1/README.md) 与 [训练分析](docs/formal_training_analysis_20261007.md)。
 
 ## 0. 项目做什么
 
-整个系统把一张普通 RGB 图像转换成带相机噪声的 Raw Bayer 输入，再训练 RawFeat 学习三件事：
+项目使用合成 Raw 数据路线：整个系统先把一张普通 RGB 图像转换成带相机噪声的 Raw Bayer 输入，再训练 RawFeat 学习三件事：
 
 1. 哪些像素附近像关键点，以及关键点在一个 8×8 cell 中的精确位置；
 2. 同一个场景在两张图中的局部描述子应该相似；
@@ -31,9 +31,9 @@ RawFeat 从低照度相机的四通道 Bayer Raw 数据中，同时输出关键�
 
 噪声使用完整的相机 DN 物理域。黑电平为 2048，白电平为 16383，噪声模型可概括为：
 
-\[
+$$
 x_{noisy}=r\left[\frac{x_{clean}}{r}+n_{ELD}\left(\frac{x_{clean}}{r}\right)\right].
-\]
+$$
 
 这里的 `r` 是曝光比。每个视角独立采样噪声；训练课程从 `r=1` 开始，逐渐扩展到 `r=100`。`r=1` 仍然有 ELD 噪声，并不等于干净图。
 
@@ -43,13 +43,11 @@ x_{noisy}=r\left[\frac{x_{clean}}{r}+n_{ELD}\left(\frac{x_{clean}}{r}\right)\rig
 
 **关键点标签。** 冻结官方 MagicLeap SuperPoint，在增强后的干净灰度图上运行。它在每个 8×8 cell 输出 65 类概率：前 64 类表示 cell 内的 64 个像素位置，最后一类是 dustbin（表示该 cell 没有关键点）。RawFeat 学习这个完整分布，而不是只学习一个二值角点图。
 
-**描述子对应标签。** 从教师的关键点中取约 75%，再加入约 25% 的空间均匀点。用已知单应矩阵把两视角中的点对应起来，最多保留 512 对，并过滤出界、无效区域和过近点。这样描述子学习的是明确的几何对应，不依赖学生当前是否已经检测出了这个点。
-
 **clean gray 标签。** 在 Bayer 采样之前，从干净 sensor RGB 减黑电平、归一化并应用同一白平衡，再按 `0.299R+0.587G+0.114B` 得到全分辨率灰度目标。这个目标保留外观变化，只约束传感器域的恢复能力。
 
 ![RawFeat 合成数据与监督标签流程](docs/figures/data_synthesis_pipeline.png)
 
-图 1：从 RGB、InvISP、Bayer、ELD 噪声到 RawFeat 输入，同时生成关键点、描述子对应和 clean gray 三类监督。
+图 1：用真实 COCO 样本逐步展示 RGB、外观/几何、InvISP、Bayer、ELD 噪声和 packed Raw；下方是冻结 SuperPoint 的关键点概率目标与 clean gray 目标。
 
 ## 2. 网络结构
 
@@ -83,19 +81,19 @@ gray 分支从 S2 用 1×1 卷积降到 24 通道，上采样到 S1 的尺寸，
 
 对一个 cell，令教师和 RawFeat 的前 64 类总质量分别为：
 
-\[
+$$
 m_T=\sum_{i<64}P_T(i),\qquad m_S=\sum_{i<64}P_S(i).
-\]
+$$
 
 再把前 64 类除以各自的总质量，得到条件位置分布 `q_T` 和 `q_S`。检测损失分成两项：
 
-\[
+$$
 L_{occ}=\frac{1}{N}\sum_c v_c\,KL\big(Bern(m_{T,c})\,\|\,Bern(m_{S,c})\big),
-\]
+$$
 
-\[
+$$
 L_{pos}=\frac{1}{\max(M,1)}\sum_c v_c m_{T,c}\,KL(q_{T,c}\|q_{S,c}),
-\]
+$$
 
 其中 `v` 是有效 cell 掩码，`N` 是有效 cell 数，`M` 是有效 cell 上教师关键点总质量。最终 `L_det` 是两项之和。
 
@@ -105,16 +103,16 @@ L_{pos}=\frac{1}{\max(M,1)}\sum_c v_c m_{T,c}\,KL(q_{T,c}\|q_{S,c}),
 
 对每一对几何对应点，在两张图的描述子网格上做双线性采样，并 L2 归一化。两边描述子的相似度为：
 
-\[
+$$
 S_{ij}=\frac{a_i^\top b_j}{0.1}.
-\]
+$$
 
 对相似度矩阵分别做行方向和列方向的 softmax，正确对应位于对角线。匹配损失是两个方向交叉熵的平均：
 
-\[
+$$
 L_{match}=-\frac{1}{2N}\sum_i\left[
 \log softmax_{row}(S)_{ii}+\log softmax_{col}(S)_{ii}\right].
-\]
+$$
 
 行方向避免一个点对应很多候选，列方向避免很多点挤到同一个候选；两者同时使用，描述子才会形成可检索的双向对应关系。
 
@@ -122,18 +120,18 @@ L_{match}=-\frac{1}{2N}\sum_i\left[
 
 gray 使用带亮度权重的 MSE：
 
-\[
+$$
 w_p=(Y_p+0.01)^{-2},\qquad
 L_{gray}=\frac{\sum_p v_pw_p(\hat Y_p-Y_p)^2}{\sum_p v_pw_p}.
-\]
+$$
 
 暗像素的误差权重大，原因是低照度任务最容易在暗部丢失有效信号。`0.01` 防止极暗像素的权重无限增大。这个分支的作用是引导共享部分恢复传感器信息；gray loss 下降本身不能证明检测一定变好。
 
 训练时使用：
 
-\[
+$$
 L=L_{det}+\lambda_m L_{match}+10L_{gray}.
-\]
+$$
 
 灰度权重 10 是 v1 的固定工程设置，不表示它已经被证明是最优值。A 阶段不计算匹配项，日志中记为未计算，而不是伪造为 0。
 
@@ -190,9 +188,9 @@ L=L_{det}+\lambda_m L_{match}+10L_{gray}.
 
 先用 MNN 匹配估计单应矩阵，再比较估计矩阵和真实矩阵投影四个角点的平均误差 `e`。对阈值 `T`，本项目的 H-AUC@T 是：
 
-\[
+$$
 \operatorname{H\text{-}AUC}@T=\operatorname{mean}\left[\max\left(0,1-\frac{e}{T}\right)\right].
-\]
+$$
 
 因此 H-AUC@5 越高表示几何估计越准；它不是关键点检测召回率，也不是“5 像素以内的样本比例”。报告同时给出 `success≤5`、匹配精度、重复性、检测点数和失败数，避免只看一个分数。
 
@@ -227,19 +225,15 @@ L=L_{det}+\lambda_m L_{match}+10L_{gray}.
 
 ### 6.3 典型场景
 
-绿色线表示满足 3 px 几何误差的 MNN，红色线表示错误匹配，黄色框/蓝色框分别表示估计和真实单应性投影。图像展示的是合成 Raw 输入，不是原始 sRGB。
+每张总览图都包含同一场景的 **clean、ratio1、ratio4、ratio16、ratio64、ratio100** 六行；左列是 RawFeat，右列是 SuperPoint。绿色线表示满足 3 px 几何误差的 MNN，红色线表示错误匹配，黄色框/蓝色框分别表示估计和真实单应性投影。图像展示的是合成 Raw 输入，不是原始 sRGB。
 
-**illumination：`i_autannes/3`，ratio16。** 这个样例中 SuperPoint 的匹配更稳，RawFeat 仍能形成较多候选，但错误线更多；它对应整体表中低噪声到中噪声阶段差异较小的现象。
+**illumination：`i_autannes/3`。** 随噪声增强，RawFeat 和 SuperPoint 的有效匹配都会减少；ratio64/100 时 RawFeat 通常保留更多候选。
 
-![RawFeat，i_autannes/3，ratio16](docs/results/hpatches_v1/visualizations/rawfeat_i_autannes_3_ratio16.png)
+![i_autannes/3 六档 RawFeat 与 SuperPoint 对比](docs/results/hpatches_v1/visualizations/rawfeat_hpatches_i_autannes_3_all_conditions.png)
 
-![SuperPoint，i_autannes/3，ratio16](docs/results/hpatches_v1/visualizations/superpoint_i_autannes_3_ratio16.png)
+**viewpoint：`v_abstract/2`。** 该场景的几何变化更强，低噪声档两者都能形成大量匹配；ratio64/100 时 SuperPoint 的错误匹配明显增多，RawFeat 的估计结果相对更稳定，但并非每个 viewpoint 样例都由 RawFeat 胜出。
 
-**viewpoint：`v_abstract/2`，ratio100。** 这个样例中 RawFeat 保留了更多可用点，估计单应性也更接近真实投影；SuperPoint 的候选和正确匹配明显减少。它说明 RawFeat 的优势主要出现在更强噪声档，并不意味着每个 viewpoint 样例都更好。
-
-![RawFeat，v_abstract/2，ratio100](docs/results/hpatches_v1/visualizations/rawfeat_v_abstract_2_ratio100.png)
-
-![SuperPoint，v_abstract/2，ratio100](docs/results/hpatches_v1/visualizations/superpoint_v_abstract_2_ratio100.png)
+![v_abstract/2 六档 RawFeat 与 SuperPoint 对比](docs/results/hpatches_v1/visualizations/rawfeat_hpatches_v_abstract_2_all_conditions.png)
 
 这个 HPatches 结果是“HPatches 图像经过 InvISP+ELD 后的合成 Raw 评估”，不是官方 RGB HPatches benchmark 分数，也不能直接等同于真实相机拍摄的低照度结果。
 
