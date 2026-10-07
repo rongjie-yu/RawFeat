@@ -11,6 +11,8 @@
 | [hpatches_evaluation_execution_report_20261007.md](hpatches_evaluation_execution_report_20261007.md) | 2026-10-07历史执行记录；其中旧的 batch=4 timing/手动报告步骤不作为当前正式流程 |
 | [hpatches_evaluation_tool_review_20261007.md](hpatches_evaluation_tool_review_20261007.md) | 已下载官方patch benchmark与SuperPoint全图参考代码后的边界核对；说明哪些部分可复用、哪些不能直接作为RawFeat主结果 |
 | [hpatches_evaluation_execution_prompt.md](hpatches_evaluation_execution_prompt.md) | 交给新会话实现adapter、测试、受控GPU smoke并交付完整评估命令的执行 prompt |
+| [../README.md](../README.md) | 面向读者的中文总说明：数据合成、网络、loss、训练、HPatches 结果和操作步骤 |
+| [results/hpatches_v1/](results/hpatches_v1/) | 当前评估代码重新运行后的 HPatches 全协议摘要、延迟和典型可视化 |
 | staged_preparation_report_20261002.md | 本次清理、简化、OCR修复复查、测试、有限短训及手动命令证据 |
 | asset_provenance.md | 保持的官方资产、标定、数值域与缓存身份 |
 | detection_followup_prompt.md | 本次执行任务原文，保留作为需求记录 |

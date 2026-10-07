@@ -28,6 +28,6 @@ model.load_state_dict(checkpoint["student"], strict=True)
 model = model.eval().to("cuda")
 ```
 
-Use `rawfeat.inference.extract_bayer` with exposure-normalized Canon Bayer sensor DN, following the [input-domain contract](../../docs/asset_provenance.md). The gray head is training supervision; a deployment copy removes it and fuses RepVGG. Formal-run fusion/latency validation has not been performed for this version; use the existing `python -m rawfeat.cli export --help` interface for a separately validated export.
+Use `rawfeat.inference.extract_bayer` with exposure-normalized Canon Bayer sensor DN, following the [input-domain contract](../../docs/asset_provenance.md). The gray head is training supervision; a deployment copy removes it and fuses RepVGG. The deployment export and single-image HPatches latency validation are recorded in [the v1 HPatches snapshot](../../docs/results/hpatches_v1/); use `python -m rawfeat.cli export --help` for the export interface.
 
 The [full training analysis](../../docs/formal_training_analysis_20261007.md) includes stage curves, detector/gray limitations, and source-paired uncertainty estimates. [Result snapshots](../../docs/results/v1/) retain the run identity, configuration, summary statistics, curves, and baseline/55000/96000/100000 per-pair validations. Datasets, validation tensors, third-party assets, and full per-update logs remain local; their identities and asset-fetch instructions are recorded in the repository.

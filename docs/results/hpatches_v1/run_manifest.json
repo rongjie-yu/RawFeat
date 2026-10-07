@@ -1,0 +1,71 @@
+{
+  "protocol": "rawfeat.hpatches.synthetic_raw.v1",
+  "manifest_sha256": "1e0f775acd0ac1d47d981ddbf3bbb2870e2b0e7ed390e583a1e957b5d413c147",
+  "cache_identity_sha256": "4bfc226a8d07df7280699ad8345ae5ad9876dea9444ce9565d5c1204bff58fca",
+  "selected_pairs": 580,
+  "selected_images": 696,
+  "conditions": [
+    "clean",
+    "ratio1",
+    "ratio4",
+    "ratio16",
+    "ratio64",
+    "ratio100"
+  ],
+  "target_indices": [
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
+  "checkpoint": "/homes/rongjie/projects/RawFeat/outputs/deployment/v1/step096000/deployment.pt",
+  "checkpoint_sha256": "77ba9a3e34102e07f6d6f84d633e4c575106910f0cd9202f6a364d8d7506d4f0",
+  "superpoint_checkpoint": "/homes/rongjie/projects/RawFeat/third_party/SuperPointPretrainedNetwork/superpoint_v1.pth",
+  "superpoint_checkpoint_sha256": "52b6708629640ca883673b5d5c097c4ddad37d8048b33f09c8ca0d69db12c40e",
+  "python": "3.12.13 | packaged by conda-forge | (main, Mar  5 2026, 16:50:00) [GCC 14.3.0]",
+  "platform": "Linux-6.8.0-138-generic-x86_64-with-glibc2.35",
+  "torch": "2.12.1+cu130",
+  "cuda": "13.0",
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "command": "/homes/rongjie/projects/RawFeat/rawfeat/cli.py hpatches-evaluate --checkpoint outputs/deployment/v1/step096000/deployment.pt --manifest manifests/hpatches_synthetic_raw_v1.json --cache outputs/hpatches_synthetic_raw_v1/cache_full --output outputs/hpatches_synthetic_raw_v1/full_step096000_rawfeat_names_20261008 --superpoint-repo third_party/SuperPointPretrainedNetwork --device cuda:0 --batch-images 1",
+  "full_protocol": true,
+  "single_image_inference": true,
+  "batch_size": 1,
+  "cache_generation_included": false,
+  "report_generated": true,
+  "visualization_count": 96,
+  "visualization_sequences": [
+    "i_ajuntament",
+    "i_autannes",
+    "v_abstract",
+    "v_adam"
+  ],
+  "visualization_targets": [
+    2,
+    3
+  ],
+  "visualizations": {
+    "count": 96,
+    "index": "visualizations/index.html",
+    "condition_pages": [
+      "visualizations/condition_clean.html",
+      "visualizations/condition_ratio1.html",
+      "visualizations/condition_ratio4.html",
+      "visualizations/condition_ratio16.html",
+      "visualizations/condition_ratio64.html",
+      "visualizations/condition_ratio100.html"
+    ],
+    "rawfeat_superpoint_page": "visualizations/rawfeat_superpoint.html",
+    "contact_sheet_page": "visualizations/contact_sheet.html"
+  },
+  "total_wall_clock_seconds": 608.1126970220357,
+  "report_paths": {
+    "markdown": "report/report.md",
+    "html": "report/report.html",
+    "summary_csv": "report/summary.csv",
+    "pairs_csv": "report/pairs.csv",
+    "failures_jsonl": "report/failures.jsonl",
+    "latency_summary": "latency_summary.json"
+  }
+}
