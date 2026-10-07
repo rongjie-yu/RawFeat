@@ -1,0 +1,22 @@
+[
+  {
+    "source": "docs/low_light_raw_feature_extractor_design.md",
+    "archive": "docs/archive/design_before_formal_staged_20261002.md",
+    "sha256": "905e5154e49418dbaee99e880852561c798c2b1c6bb518f6adcfa95e25cb11e0"
+  },
+  {
+    "source": "docs/detection_followup_prompt.md",
+    "archive": "docs/archive/prompt_before_formal_staged_20261002.md",
+    "sha256": "1b23a1a9a938fbc64cbff7e0f4249f64d98c209a62cfb39af1d57026e5ff5dc7"
+  },
+  {
+    "source": "docs/README.md",
+    "archive": "docs/archive/docs_index_before_formal_staged_20261002.md",
+    "sha256": "fab353057df1276c1172006e28d06771725d844d3403276a57c71198fd47146c"
+  },
+  {
+    "source": "README.md",
+    "archive": "docs/archive/project_readme_before_formal_staged_20261002.md",
+    "sha256": "e309c82e0b14dc42b2ec445e9146da0132b8b3338b3741f0a959c6a3710433b6"
+  }
+]

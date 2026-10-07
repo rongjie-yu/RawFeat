@@ -1,0 +1,70 @@
+{
+  "review_tool": "open-code-review v1.12.11 delegate",
+  "mode": "workspace",
+  "summary": {
+    "total_files": 31,
+    "reviewed_files": 31,
+    "skipped_files": 0,
+    "coverage_rate": 1.0
+  },
+  "additional_review": "OCR默认排除的7个测试、README、4个设计/审计文档和依赖清单均补充审查；新增补丁和诊断脚本再次复查。规划状态文件属于过程记录。",
+  "findings": [
+    {
+      "path": "rawfeat/features.py",
+      "content": "等分数区域逐像素比较邻域最小索引，只保留左上角；默认8像素边界随后删掉该点，32x32平坦输入最终为0点。改为候选点的稳定贪心抑制，回归要求保留16个互相间隔大于4像素的内部点。",
+      "category": "bug",
+      "severity": "high",
+      "resolution": "fixed",
+      "start_line": 58
+    },
+    {
+      "path": "rawfeat/features.py",
+      "content": "NMS先于有效区域和边界过滤，无效高分点会压掉邻近有效点。改为在最大池化前排除这些位置；新增边界与mask两个用例。",
+      "category": "bug",
+      "severity": "medium",
+      "resolution": "fixed",
+      "start_line": 41
+    },
+    {
+      "path": "rawfeat/training.py",
+      "content": "未指定resume的新训练重用已有输出目录，覆盖历史检查点并拼接新日志，违背保留历史要求。新增早期输出目录检查、CLI --output，拒绝覆盖并保留原文件；恢复配置通过验证后才写运行元数据。",
+      "category": "bug",
+      "severity": "high",
+      "resolution": "fixed",
+      "start_line": 201
+    },
+    {
+      "path": "rawfeat/validation.py",
+      "content": "部分图像验证可以使用完整256图基线的汇总指标，比较不同样本的分数。改为从基线逐对结果提取相同前缀子集再聚合；检验子集完整性，保留失败样本。",
+      "category": "bug",
+      "severity": "medium",
+      "resolution": "fixed",
+      "start_line": 350
+    },
+    {
+      "path": "rawfeat/validation.py",
+      "content": "清单仅检查总数量，重复源、train2017混入、错误噪声档位/clean标志/倍率/随机种子均可通过。按固定协议校验唯一val源及每个case的语义，六种破坏用例回归。",
+      "category": "bug",
+      "severity": "medium",
+      "resolution": "fixed",
+      "start_line": 120
+    },
+    {
+      "path": "rawfeat/validation.py",
+      "content": "evaluate接收处于train模式的学生时会更新BN并依赖验证batch统计；max_images<=0也会产生空指标。显式要求eval模式并把验证/缓存图像数量限制为1..256。",
+      "category": "bug",
+      "severity": "medium",
+      "resolution": "fixed",
+      "start_line": 277
+    },
+    {
+      "path": "rawfeat/training.py",
+      "content": "formal配置允许validation_images=16，预检依然通过，但所有验证均为partial，无法创建best。要求正式模型选择使用完整256图协议。",
+      "category": "bug",
+      "severity": "medium",
+      "resolution": "fixed",
+      "start_line": 40
+    }
+  ],
+  "remaining_actionable_findings_after_recheck": []
+}

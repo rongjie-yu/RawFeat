@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+*.pyc
+outputs/
+third_party/
+.planning/

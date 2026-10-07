@@ -1,0 +1,32 @@
+mode: smoke
+device: cuda:0
+seed: 42
+coco_root: /homes/rongjie/datasets/coco
+invisp_repo: third_party/Invertible-ISP
+superpoint_repo: third_party/SuperPointPretrainedNetwork
+eld_calibration: third_party/ELD/camera_params/release/CanonEOS5D4_params.npy
+validation_manifest: manifests/coco_val2017_seed2027.json
+validation_cache: outputs/checks/detection_followup_20261002/validation_cache_rngsplit
+baseline_summary: outputs/checks/detection_followup_20261002/baseline_rngsplit/summary.json
+output: outputs/checks/staged_preparation_20261002/smoke
+batch_pairs: 4
+accumulation: 4
+weight_decay: 0.0001
+gradient_clip: 5.0
+log_interval: 20
+validation_interval: 300
+validation_images: 32
+diagnostic_interval: 100
+diagnostic_images: 16
+checkpoint_interval: 100
+probe_interval: 300
+schedule:
+  updates: 600
+  detection_updates: 300
+  matching_ramp: 100
+  lr_initial: 0.000003
+  lr_peak: 0.0003
+  lr_min: 0.000003
+  lr_warmup: 20
+  ratio_start: 30
+  ratio_end: 240

@@ -1,0 +1,43 @@
+{
+  "date": "2026-10-01",
+  "purpose": "Verbatim pre-unification design snapshots; reference only",
+  "snapshots": [
+    {
+      "original_path": "docs/low_light_raw_feature_extractor_design.md",
+      "archive_path": "docs/archive/design_ratio100_before_unification_20261001.md",
+      "sha256": "6d4968ee6e27b67aca4c40882ed98a0dcac2c3dcc85667428ee3540e4ab2fcf9"
+    },
+    {
+      "original_path": "docs/low_light_raw_feature_extractor_design_v2.md",
+      "archive_path": "docs/archive/other_ai_design_v2_20261001.md",
+      "sha256": "7fe4edf97ec6fff493588d2258862b466f447ec3a37111089f2f9310e285dd3c"
+    },
+    {
+      "original_path": "docs/files/README.md",
+      "archive_path": "docs/archive/other_ai_code_README_20261001.md",
+      "sha256": "803d945fedc8036d7641aa49842771376c49f9199ed5eac6d5fd4250ffa260c6"
+    }
+  ],
+  "duplicate_other_ai_source": {
+    "path": "docs/files/low_light_raw_feature_extractor_design_v2.md",
+    "sha256": "7fe4edf97ec6fff493588d2258862b466f447ec3a37111089f2f9310e285dd3c"
+  },
+  "production_sha256": {
+    "rawfeat/losses.py": "d2112747bd58ef81de1234a0ee98ab3889c61ff5396e1df169702abe311ed67e",
+    "rawfeat/model.py": "d4f0b507bfef22daa6080db834558c65f951a1e8c6bee330677681f83de2b270",
+    "rawfeat/sensor.py": "714739f467a9d771fba1b1c66e8e3f8515e54bddcc7bfddb625ca355605eff54",
+    "rawfeat/noise.py": "a5a60d74404881143ba3bc7621db88d80bb317e82e4b0ba4cfffd69e807c1002",
+    "configs/formal.yaml": "4b005eac72025be0c9ca37451cc131e34c55fcab0115c82ec67c81dba5671515"
+  },
+  "reference_code_sha256": {
+    "docs/files/__init__.py": "682e35764f8fd13bf05e7d23be60c2a6949d3cd58c097dba463b3c84197656bf",
+    "docs/files/geometry.py": "23fbcc300e5f0e4293ebbe6049f02abf3e89b90b1bb89b7207c576c8589d9523",
+    "docs/files/losses.py": "f497f37ed0fd994d681d53cc55830bed07c525fd0d6f1260bbd5e9c69ec69cc1",
+    "docs/files/measure.py": "5dd899cd300d84e4a50161948e5d52df281519600ef7b5aed47c84dff9dcb27c",
+    "docs/files/repblock.py": "6d8a8ae650e512da5bc9a8f5b1b1364ec0d16200be156b2b405b50fe4a087e0d",
+    "docs/files/student.py": "9b6aa2f1139b66d687a8f709c604b7751d8dbc7b43ab03917da54d7cbb467b8a",
+    "docs/files/superpoint_ref.py": "53beb12fa1229636ab0a037c78d4e9f545ac40bdbcd9ef03e4a1abada5de1b15",
+    "docs/files/test_losses_geometry.py": "44684d7413014e70a80c50180c642e8e09579c0d8b91b8ba1e288fd9c1f93ea7",
+    "docs/files/test_network.py": "ca03401dc2e1f2aa2f0b0feba6dc3f54f692af7a18afacc5fa95c69296f6f3dc"
+  }
+}
