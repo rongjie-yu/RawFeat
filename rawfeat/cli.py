@@ -63,6 +63,24 @@ def _parser() -> argparse.ArgumentParser:
     export.add_argument("--warmup", type=int, default=20)
     export.add_argument("--force", action="store_true")
     export.add_argument("--device", default="cuda:0")
+
+    export_onnx = sub.add_parser(
+        "export-onnx",
+        help="export a fused RepVGG, gray-free deployment model as ONNX",
+    )
+    export_onnx.add_argument("--checkpoint", required=True)
+    export_onnx.add_argument("--output", required=True,
+                              help="destination .onnx file or directory")
+    export_onnx.add_argument("--batch-size", type=int, default=1)
+    export_onnx.add_argument("--input-height", type=int, default=240,
+                              help="packed Bayer input height")
+    export_onnx.add_argument("--input-width", type=int, default=320,
+                              help="packed Bayer input width")
+    export_onnx.add_argument("--opset", type=int, default=17)
+    export_onnx.add_argument("--device", default="cpu")
+    export_onnx.add_argument("--static-shape", action="store_true")
+    export_onnx.add_argument("--skip-validation", action="store_true")
+    export_onnx.add_argument("--force", action="store_true")
     diagnostics = sub.add_parser('diagnose')
     diagnostics.add_argument('--checkpoint', required=True)
     diagnostics.add_argument('--output', required=True)
@@ -176,6 +194,22 @@ def main() -> None:
         except (FileNotFoundError, ValueError, RuntimeError) as error:
             print(json.dumps({'ready': False, 'reason': str(error)}))
             raise SystemExit(1) from error
+        print(json.dumps(report, allow_nan=False))
+        return
+    if args.command == 'export-onnx':
+        from .onnx_export import export_onnx
+        report = export_onnx(
+            args.checkpoint,
+            args.output,
+            batch_size=args.batch_size,
+            input_height=args.input_height,
+            input_width=args.input_width,
+            opset=args.opset,
+            device=args.device,
+            dynamic=not args.static_shape,
+            validate=not args.skip_validation,
+            overwrite=args.force,
+        )
         print(json.dumps(report, allow_nan=False))
         return
     if not torch.cuda.is_available():

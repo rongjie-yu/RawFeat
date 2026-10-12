@@ -364,6 +364,17 @@ CUDA_VISIBLE_DEVICES=3 python -m rawfeat.cli export \
 
 导出后可运行 `python -m rawfeat.cli hpatches-deploy-smoke --help` 查看部署模型与未融合模型的一致性检查入口。
 
+如果下游运行时需要 ONNX，可以直接从训练 checkpoint 或上面的 `.pt` 部署文件导出。脚本会再次检查并确保 11 个 RepVGG 块已融合，删除 `gray_reduce`、`gray_conv`、`gray_output`，且 ONNX 只保留 `logits` 与 `descriptors` 两个输出：
+
+```bash
+python scripts/export_onnx.py \
+  --checkpoint weights/v1/checkpoint_step_096000.pt \
+  --output outputs/deployment/v1/step096000/deployment.onnx \
+  --input-height 240 --input-width 320 --device cpu --force
+```
+
+输入是 `[N,4,H,W]` 的 packed Bayer 张量，`H/W` 为 packed 尺寸并需为 4 的倍数；默认导出 batch、空间维度动态的 FP32 图。输出旁边会写入 `deployment.onnx.metadata.json`，默认使用 ONNX checker 和 ONNX Runtime 对 PyTorch 输出做数值校验。需要固定形状时加 `--static-shape`，没有 ONNX Runtime 时可以加 `--skip-validation` 跳过校验。
+
 ### 9.2 生成 HPatches cache
 
 完整 cache 约 4.8GB，按单图保存六档 FP32 Bayer 数据。只需生成一次：
@@ -405,6 +416,7 @@ outputs/hpatches_synthetic_raw_v1/full_step096000/report/report.md
 | 路径 | 内容 |
 |---|---|
 | `rawfeat/model.py` | RawFeat 网络和 RepVGG 部署融合 |
+| `rawfeat/onnx_export.py` / `scripts/export_onnx.py` | ONNX 部署导出、图检查和 PyTorch/ONNX Runtime 数值核对 |
 | `rawfeat/losses.py` | 检测、匹配、gray 三项 loss |
 | `rawfeat/data.py` / `rawfeat/noise.py` / `rawfeat/sensor.py` | COCO 合成 Raw、ELD 噪声和数值域转换 |
 | `rawfeat/hpatches.py` / `rawfeat/hpatches_report.py` | HPatches cache、单图评估和自动报告 |
