@@ -1,0 +1,39 @@
+mode: smoke_v2
+device: cuda:0
+seed: 42
+coco_root: /homes/rongjie/datasets/coco
+source_manifest: outputs/checks/v2_20261017/manifests/sources.json
+initial_checkpoint: weights/v1/checkpoint_step_096000.pt
+legacy_validation_manifest: manifests/coco_val2017_seed2027.json
+legacy_validation_cache: outputs/checks/detection_followup_20261002/validation_cache_rngsplit
+invisp_repo: third_party/Invertible-ISP
+superpoint_repo: third_party/SuperPointPretrainedNetwork
+eld_calibration: third_party/ELD/camera_params/release/CanonEOS5D4_params.npy
+validation_manifest: outputs/checks/v2_20261017/manifests/validation.json
+validation_cache: outputs/checks/v2_20261017/validation_cache
+baseline_summary: outputs/checks/detection_followup_20261002/baseline_rngsplit/summary.json
+output: outputs/checks/v2_20261017/train
+batch_pairs: 4
+accumulation: 4
+weight_decay: 0.0001
+gradient_clip: 5.0
+log_interval: 1
+validation_interval: 10
+validation_images: 2
+diagnostic_interval: 10
+diagnostic_images: 2
+checkpoint_interval: 5
+probe_interval: 20
+schedule:
+  updates: 20
+  detection_updates: 0
+  matching_ramp: 0
+  lr_initial: 0.00001
+  lr_peak: 0.0001
+  lr_min: 0.00001
+  lr_warmup: 2
+  ratio_start: 2
+  ratio_end: 5
+  ratio_initial: 100
+  ratio_max: 225
+  backbone_lr_multiplier: 0.3

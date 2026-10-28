@@ -313,6 +313,8 @@ bash scripts/run_required_checks.sh
 
 ## 8. 训练步骤
 
+V2训练优化已提供独立配置：MegaDepth:COCO=6:4、最大ratio225、独立对数均匀采样，从V1/96000初始化后联合训练30k更新，网络结构不变。数据准备、缓存、启动、恢复和评估命令见 [V2全量训练步骤](docs/v2_training_runbook.md)。V1入口如下，继续保留。
+
 ### 8.1 只做短 smoke 检查
 
 `configs/smoke.yaml` 使用同一套模型、loss 和调度，只把总预算压缩到 600 次更新：
@@ -424,3 +426,17 @@ outputs/hpatches_synthetic_raw_v1/full_step096000/report/report.md
 | `weights/v1/` | v1 训练 checkpoint 和 SHA256 清单 |
 | `docs/results/hpatches_v1/` | 本 README 对应的完整评估摘要、延迟和典型可视化 |
 | `docs/asset_provenance.md` | 官方资产、版本和数值域约定 |
+
+## 10. V2训练优化与发布结果
+
+V2沿用V1网络结构和loss公式，从V1/96000初始化后联合训练30000次更新，MegaDepth:COCO=6:4，两侧噪声独立对数均匀采样，上限由100平滑升至225。V2发布结果固定为 **27000、28000、29000、30000** 四个checkpoint，见[权重与加载方式](weights/v2/README.md)、[SHA-256及结果清单](weights/v2/manifest.json)和[完整结果归档](docs/results/v2/README.md)。
+
+| HPatches H-AUC@5 | V1初始化 | V2/27000 | V2/28000 | V2/29000 | V2/30000 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 原五噪声平均 | 48.608% | 47.645% | 47.661% | 47.565% | 47.117% |
+| ratio150 | 23.948% | 25.781% | 23.952% | 25.402% | 26.448% |
+| ratio225 | 18.123% | 19.167% | 20.889% | 19.537% | 18.581% |
+
+每档均为116序列、580对图像，原五噪声平均只包含1/4/16/64/100。V2的150/225强噪声平均有收益，原五档和clean回退，尚未全面优于V1；完整配对置信区间见[比较结果](docs/results/v2/hpatches/comparison.json)。
+
+数据准备、缓存、训练、恢复命令见[V2训练手册](docs/v2_training_runbook.md)。运行索引`manifests/v2/`由`v2-prepare`在本地生成；模型、哈希、固定验证和HPatches序列统计已随本分支发布。

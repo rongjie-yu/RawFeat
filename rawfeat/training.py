@@ -16,7 +16,7 @@ import numpy as np
 import torch
 from torch.utils.tensorboard import SummaryWriter
 
-from .config import load_config
+from .config import is_v2, load_config
 from .correspondences import sample_correspondences
 from .data import PairGenerator, PairRequest, image_paths
 from .features import extract_features
@@ -33,14 +33,19 @@ from .validation import (BASELINE_PREPROCESSING, baseline_code_digest, cache_ide
                          evaluate, file_digest, identity_digest, read_cache_identity, read_manifest)
 
 
-def training_paths(config: dict) -> list[Path]:
+def training_paths(config: dict) -> list[Path] | dict:
+    if is_v2(config):
+        from .data_v2 import source_pool
+        return source_pool(config)
     paths = image_paths(config['coco_root'], 'train2017')
     if len(paths) != 118287:
         raise RuntimeError('training requires all 118287 COCO train2017 sources')
     return paths
 
 
-def paths_hash(paths: list[Path]) -> str:
+def paths_hash(paths: list[Path] | dict) -> str:
+    if isinstance(paths, dict):
+        return paths['manifest_sha256']
     return hashlib.sha256('\n'.join(path.name for path in paths).encode()).hexdigest()
 
 
@@ -51,6 +56,9 @@ def formal_preflight(config: dict) -> dict:
     device = torch.device(config['device'])
     torch.cuda.set_device(device)
     configure_fp32()
+    if is_v2(config):
+        from .validation_v2 import preflight
+        return preflight(config, training_paths(config))
     manifest, digest = read_manifest(config['validation_manifest'])
     cached = read_cache_identity(config['validation_cache'], digest)
     if cached != cache_identity(digest, config['invisp_repo'], config['eld_calibration']):
@@ -78,6 +86,16 @@ def formal_preflight(config: dict) -> dict:
 
 
 def make_optimizer(model: RawFeatureExtractor, config: dict) -> torch.optim.AdamW:
+    if is_v2(config):
+        groups = {}
+        for module_name, module in model.named_modules():
+            multiplier = config['schedule']['backbone_lr_multiplier'] if module_name.startswith('stage') else 1.
+            for name, parameter in module.named_parameters(recurse=False):
+                decay = config['weight_decay'] if isinstance(module, torch.nn.Conv2d) and name == 'weight' else 0.
+                groups.setdefault((multiplier, decay), []).append(parameter)
+        return torch.optim.AdamW([dict(params=params, weight_decay=decay, lr_scale=scale,
+                                       lr=config['schedule']['lr_initial']*scale)
+                                  for (scale, decay), params in groups.items()], betas=(.9, .999), eps=1e-8)
     decay, no_decay = [], []
     for module in model.modules():
         for name, parameter in module.named_parameters(recurse=False):
@@ -99,13 +117,28 @@ def set_training_mode(model: RawFeatureExtractor, config: dict, step: int = 0) -
             p.grad = None
 
 
-def training_request(paths: list[Path], seed: int, sample_number: int, step: int, config: dict) -> tuple[PairRequest, int]:
+def training_request(paths: list[Path] | dict, seed: int, sample_number: int, step: int, config: dict) -> tuple[PairRequest, int]:
     rng = np.random.default_rng(np.random.SeedSequence([seed, sample_number]))
-    image = str(paths[int(rng.integers(len(paths)))])
+    if is_v2(config):
+        from .data_v2 import sample_source
+        image = sample_source(paths, seed, sample_number)
+    else:
+        image = str(paths[int(rng.integers(len(paths)))])
     values = rng.integers(0, 2**31 - 1, size=7).tolist()
     ratio_a = sample_ratio(step, float(rng.random()), config['schedule'])
     ratio_b = sample_ratio(step, float(rng.random()), config['schedule'])
     return PairRequest(image, *values[:6], ratio_a, ratio_b), values[6]
+
+
+def initialize_v2(model, config):
+    """Load only unfused student weights/BN; optimizer, cursor and RNG start fresh."""
+    state = torch.load(config['initial_checkpoint'], map_location='cpu', weights_only=False)
+    check_schema(state)
+    if state['step'] != 96000:
+        raise ValueError('V2 initialization requires the published V1 step96000 training checkpoint')
+    model.load_state_dict(state['student'], strict=True)
+    return {'path': str(Path(config['initial_checkpoint']).resolve()),
+            'sha256': file_digest(config['initial_checkpoint']), 'step': state['step']}
 
 
 def capture_rng() -> dict:
@@ -137,12 +170,12 @@ def save_checkpoint(path: Path, state: dict) -> None:
     temporary.replace(path)
 
 
-def load_checkpoint(path, model, optimizer, config, identity, *, allow_gpu_change=False) -> dict:
+def load_checkpoint(path, model, optimizer, config, identity, *, allow_gpu_change=False, allow_probe_fix=False) -> dict:
     state = torch.load(path, map_location='cpu', weights_only=False)
     check_schema(state)
     if state['config'] != config:
         raise RuntimeError('checkpoint configuration identity differs')
-    check_resume_identity(state['identity'], identity, allow_gpu_change=allow_gpu_change)
+    check_resume_identity(state['identity'], identity, allow_gpu_change=allow_gpu_change, allow_probe_fix=allow_probe_fix)
     if allow_gpu_change and (len(state['rng']['torch_cuda']) != 1 or torch.cuda.device_count() != 1):
         raise RuntimeError('GPU migration requires one saved and one visible CUDA device')
     step = state['step']
@@ -173,8 +206,13 @@ def point_pairs(teacher_features: list[dict], pair: dict, seed: int, device: tor
 def make_microbatch(generator, teacher, paths, config, step, cursor, device) -> tuple[dict, dict]:
     active = matching_coefficient(step, config['schedule']) > 0
     pairs, logits_list, matches, counts, ratios = [], [], [], [], []
+    source_counts, scene_counts = {}, {}
     for slot in range(config['batch_pairs']):
         request, seed = training_request(paths, config['seed'], cursor+slot, step, config)
+        if is_v2(config):
+            source = paths['metadata'][request.image]
+            for target, key in ((source_counts, source['dataset']), (scene_counts, source['dataset']+'/'+source['scene'])):
+                target[key] = target.get(key, 0)+1
         pair = generator.generate(request)
         with torch.no_grad():
             logits, grid = teacher(pair['srgb_gray'])
@@ -192,6 +230,7 @@ def make_microbatch(generator, teacher, paths, config, step, cursor, device) -> 
                 'teacher_points': sum(c['teacher_a'] + c['teacher_b'] for c in counts) if active else None,
                 'uniform_points': sum(c['uniform'] for c in counts) if active else None,
                 'valid_cells': int(batch['valid_cells'].sum()), 'valid_pixels': int(batch['valid_pixels'].sum())}
+    measured.update(source_counts=source_counts, scene_counts=scene_counts)
     return batch, measured
 
 
@@ -283,11 +322,13 @@ def retain_checkpoints(output: Path, boundaries: set[int]) -> None:
             p.unlink()
 
 
-def train(config_path, *, resume=None, max_updates=None, output_root=None, allow_gpu_change=False) -> dict:
+def train(config_path, *, resume=None, max_updates=None, output_root=None, allow_gpu_change=False, allow_probe_fix=False) -> dict:
     from .analysis import analyze_run
     from .diagnostics import diagnose_model, gradient_probe
     if allow_gpu_change and resume is None:
         raise ValueError('--allow-gpu-change requires --resume')
+    if allow_probe_fix and resume is None:
+        raise ValueError('--allow-probe-fix requires --resume')
     config = load_config(config_path)
     if output_root is not None:
         config['output'] = str(output_root)
@@ -307,21 +348,25 @@ def train(config_path, *, resume=None, max_updates=None, output_root=None, allow
     fixed = {k: v for k, v in preflight.items() if k not in ('free_memory_bytes', 'total_memory_bytes')}
     identity = run_identity(config, paths_hash(paths), fixed)
     student = RawFeatureExtractor().to(device)
+    lineage = initialize_v2(student, config) if is_v2(config) and resume is None else None
     optimizer = make_optimizer(student, config)
     teacher = load_teacher(config['superpoint_repo'], device)
     generator = PairGenerator(load_invisp(config['invisp_repo'], device), CanonELD(config['eld_calibration']), device)
     step, clipped_count, best, validation = 0, 0, {'det': None, 'geometry': None}, None
     output.mkdir(parents=True, exist_ok=True)
     if resume is not None:
-        state = load_checkpoint(resume, student, optimizer, config, identity, allow_gpu_change=allow_gpu_change)
+        state = load_checkpoint(resume, student, optimizer, config, identity,
+                                allow_gpu_change=allow_gpu_change, allow_probe_fix=allow_probe_fix)
         step, clipped_count, best, validation = state['step'], state['clipped_count'], state['best'], state['validation']
         manifest = json.loads((output/'run_manifest.json').read_text())
         if manifest['identity_sha256'] != identity_digest(manifest['identity']):
             raise RuntimeError('run manifest identity digest differs')
-        manifest_changes = check_resume_identity(manifest['identity'], identity, allow_gpu_change=allow_gpu_change)
+        manifest_changes = check_resume_identity(manifest['identity'], identity,
+                                                allow_gpu_change=allow_gpu_change, allow_probe_fix=allow_probe_fix)
         reconcile_logs(output, step)
         write_json(output/f'resume_identity_{step:06d}_{time.time_ns()}.json', {
             'step': step, 'checkpoint': str(Path(resume).resolve()), 'allow_gpu_change': allow_gpu_change,
+            'allow_probe_fix': allow_probe_fix,
             'checkpoint_identity': state['identity'], 'checkpoint_identity_sha256': state['identity_sha256'],
             'current_identity': identity, 'current_identity_sha256': identity_digest(identity),
             'checkpoint_changes': identity_differences(state['identity'], identity),
@@ -331,13 +376,33 @@ def train(config_path, *, resume=None, max_updates=None, output_root=None, allow
         write_json(output/'run_manifest.json', {'identity': identity, 'identity_sha256': identity_digest(identity),
                    'command': sys.argv, 'started_utc': datetime.now(timezone.utc).isoformat(), 'preflight': preflight})
         write_json(output/'resolved_config.json', config)
-        (output/'training_images.txt').write_text(''.join(p.name+'\n' for p in paths))
+        names = sorted(paths['metadata']) if is_v2(config) else [p.name for p in paths]
+        (output/'training_images.txt').write_text(''.join(p+'\n' for p in names))
+        if lineage:
+            write_json(output/'initialization.json', lineage)
     if stop < step:
         raise ValueError('absolute stop precedes restored update count')
     set_training_mode(student, config, step)
+    if is_v2(config) and resume is None:
+        from .validation_v2 import evaluate as evaluate_v2
+        rng = capture_rng()
+        try:
+            tested = copy.deepcopy(student).eval()
+            initial = evaluate_v2(config, tested, output/'validation'/'step_000000', images=config['validation_images'])
+            del tested
+        finally:
+            restore_rng(rng)
+        best.update(geometry=initial['score'], reference_coco_score=initial['legacy_coco_score'],
+                    reference_coco_clean=initial['coco_clean_score'])
+        write_json(output/'initial_validation.json', initial)
     reliable = checkpoint_payload(student, optimizer, config, step, identity, best, validation, clipped_count)
+    if is_v2(config) and resume is None:
+        save_checkpoint(output/'checkpoint_step_000000.pt', reliable)
+        _link_checkpoint(output, 'best_geometry.pt', output/'checkpoint_step_000000.pt')
     initial_descriptor = copy.deepcopy(student.descriptor.state_dict()) if step <= config['schedule']['detection_updates'] else None
     boundaries = {config['schedule']['detection_updates'], config['schedule']['detection_updates']+config['schedule']['matching_ramp'], config['schedule']['updates']}
+    if is_v2(config):
+        boundaries = {config['schedule'][key] for key in ('lr_warmup', 'ratio_end', 'updates')}
     writer = SummaryWriter(output/'tensorboard', purge_step=step+1 if resume else None)
     scalar_log = (output/'scalars.jsonl').open('a')
     cursor = step*16
@@ -353,13 +418,14 @@ def train(config_path, *, resume=None, max_updates=None, output_root=None, allow
             completed = step_index+1
             set_training_mode(student, config, step_index)
             for group in optimizer.param_groups:
-                group['lr'] = schedule['lr']
+                group['lr'] = schedule['lr']*group.get('lr_scale', 1.)
             optimizer.zero_grad(set_to_none=True)
             totals = {name: None if name == 'match' and schedule['matching_weight'] == 0 else 0.
                       for name in ('det', 'occupancy', 'position', 'gray', 'match', 'total', 'teacher_mass', 'position_scale')}
             counts = {k: None if k in ('correspondences', 'teacher_points', 'uniform_points') and schedule['matching_weight'] == 0 else 0
                       for k in ('correspondences', 'teacher_points', 'uniform_points', 'valid_cells', 'valid_pixels')}
             ratios, input_digests = [], []
+            source_counts, scene_counts = {}, {}
             audit = completed == 1 or completed in boundaries or step_index == step or step_index in boundaries
             probe = completed == 1 or completed in boundaries or completed % config['probe_interval'] == 0
             batches = []
@@ -380,6 +446,9 @@ def train(config_path, *, resume=None, max_updates=None, output_root=None, allow
                     if losses[name] is not None:
                         totals[name] += float(losses[name].detach())/4
                 ratios.extend(observed['ratios'])
+                for name, target in (('source_counts', source_counts), ('scene_counts', scene_counts)):
+                    for key, count in observed[name].items():
+                        target[key] = target.get(key, 0)+count
                 for name in counts:
                     if observed[name] is not None:
                         counts[name] += observed[name]
@@ -408,6 +477,12 @@ def train(config_path, *, resume=None, max_updates=None, output_root=None, allow
                    'clipped': norm > 5, 'clipped_count': clipped_count, 'clip_frequency': clipped_count/completed,
                    'update_seconds': seconds, 'pairs_per_second': 16/seconds,
                    'max_memory_bytes': torch.cuda.max_memory_allocated(device), **counts}
+            if is_v2(config):
+                row.update(source_counts=source_counts, scene_counts=scene_counts)
+                row['ratio_counts'] = {label: sum(low <= r < high for r in ratios) for label, low, high in
+                                       (('[1,4)', 1., 4.), ('[4,16)', 4., 16.), ('[16,64)', 16., 64.),
+                                        ('[64,100]', 64., 100.00000001), ('(100,150]', 100.00000001, 150.00000001),
+                                        ('(150,225]', 150.00000001, 225.00000001))}
             if input_digests:
                 row['input_sha256'] = hashlib.sha256(''.join(input_digests).encode()).hexdigest()
             scalar_log.write(json.dumps(row, allow_nan=False)+'\n'); scalar_log.flush()
@@ -439,12 +514,22 @@ def train(config_path, *, resume=None, max_updates=None, output_root=None, allow
                                                completed, images=images, geometry=schedule['phase'] != 'A')
                     geometry = None
                     if should_validate and schedule['phase'] != 'A':
-                        geometry = evaluate(config['validation_manifest'], config['validation_cache'],
+                        if is_v2(config):
+                            from .validation_v2 import evaluate as evaluate_v2
+                            geometry = evaluate_v2(config, tested, output/'validation'/f'step_{completed:06d}',
+                                                   images=config['validation_images'])
+                        else:
+                            geometry = evaluate(config['validation_manifest'], config['validation_cache'],
                                             output/'validation'/f'step_{completed:06d}', model=tested,
                                             baseline_summary=config['baseline_summary'], max_images=config['validation_images'])
                     validation = {'step': completed, 'phase': schedule['phase'], 'detection': detection, 'geometry': geometry}
+                    if is_v2(config):
+                        from .validation_v2 import update_best as update_best_v2
+                        new_det = False
+                        new_geometry = update_best_v2(best, geometry) if geometry is not None else False
+                    else:
+                        new_det, new_geometry = update_best(best, schedule['phase'], detection, geometry)
                     write_json(output/'validation'/f'step_{completed:06d}'/'selection.json', validation)
-                    new_det, new_geometry = update_best(best, schedule['phase'], detection, geometry)
                     for label, value in [('teacher_recall_1px', detection['teacher_recall_1px']),
                                          ('geometry_score', geometry['score'] if geometry else None)]:
                         if value is not None: writer.add_scalar('validation/'+label, value, completed)

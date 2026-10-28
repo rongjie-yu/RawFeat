@@ -14,6 +14,7 @@ from .validation import file_digest, identity_digest
 SCHEMA = 'rawfeat.staged.v1'
 ROOT = Path(__file__).resolve().parents[1]
 GPU_RESUME_REVISION = ROOT / 'rawfeat/gpu_resume_revision.json'
+PROBE_RESUME_REVISION = ROOT / 'rawfeat/probe_resume_revision.json'
 
 
 def run_identity(config: dict, train_hash: str, preflight: dict) -> dict:
@@ -29,6 +30,10 @@ def run_identity(config: dict, train_hash: str, preflight: dict) -> dict:
         'invisp_modules_source': Path(config['invisp_repo'])/'model/modules.py',
         'baseline': Path(config['baseline_summary']),
     }.items()}
+    if config['mode'] in ('formal_v2', 'smoke_v2'):
+        assets.update(initial_checkpoint=file_digest(config['initial_checkpoint']),
+                      source_manifest=file_digest(config['source_manifest']),
+                      legacy_validation_manifest=file_digest(config['legacy_validation_manifest']))
     return {'schema': SCHEMA, 'config': config, 'code_sha256': code, 'dependencies': dependencies,
             'environment_files': {name: file_digest(ROOT/name) for name in ('requirements.txt', 'environment.yml')},
             'python': sys.version, 'torch_cuda': torch.version.cuda, 'gpu': torch.cuda.get_device_name(),
@@ -64,7 +69,8 @@ def identity_differences(saved: dict, current: dict, prefix: str = '') -> list[s
     return differences
 
 
-def check_resume_identity(saved: dict, current: dict, *, allow_gpu_change: bool = False) -> list[str]:
+def check_resume_identity(saved: dict, current: dict, *, allow_gpu_change: bool = False,
+                          allow_probe_fix: bool = False) -> list[str]:
     differences = identity_differences(saved, current)
     allowed = set()
     if allow_gpu_change:
@@ -74,6 +80,11 @@ def check_resume_identity(saved: dict, current: dict, *, allow_gpu_change: bool 
             if (saved.get('code_sha256') == revision['source_code_sha256']
                     and current.get('code_sha256') == revision['target_code_sha256']):
                 allowed.update(path for path in differences if path.startswith('code_sha256.'))
+    if allow_probe_fix and saved.get('code_sha256') != current.get('code_sha256'):
+        revision = json.loads(PROBE_RESUME_REVISION.read_text())
+        if (saved.get('code_sha256') == revision['source_code_sha256']
+                and current.get('code_sha256') == revision['target_code_sha256']):
+            allowed.update(path for path in differences if path.startswith('code_sha256.'))
     rejected = set(differences) - allowed
     if rejected:
         raise RuntimeError('checkpoint identity differs: ' + ', '.join(sorted(rejected)))

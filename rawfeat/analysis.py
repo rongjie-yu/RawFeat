@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from .identity import write_json
+from .config import is_v2
 
 
 def read_jsonl(path: Path) -> list[dict]:
@@ -26,6 +27,10 @@ def analyze_run(run: str | Path) -> dict:
         raise RuntimeError('analysis needs contiguous unique update records')
     output = run/'analysis'; output.mkdir(exist_ok=True)
     boundaries = [config['schedule']['detection_updates'], config['schedule']['detection_updates']+config['schedule']['matching_ramp']]
+    v2 = is_v2(config)
+    if v2:
+        boundaries = [config['schedule']['lr_warmup'], config['schedule']['ratio_end']]
+    noisy_buckets = ('1', '4', '16', '64', '100', '150', '225') if v2 else ('1', '4', '16', '64', '100')
     diagnostics = [json.loads(p.read_text()) for p in sorted((run/'diagnostics').glob('step_*/summary.json'))]
     diagnostics = [r for r in diagnostics if r['step'] <= rows[-1]['step']]
     geometry = [json.loads(p.read_text()) for p in sorted((run/'validation').glob('step_*/selection.json'))]
@@ -63,14 +68,16 @@ def analyze_run(run: str | Path) -> dict:
                      ('raw matching (A unavailable)', scalars(['loss_match'])),
                      ('raw gray', scalars(['loss_gray'])),
                      ('weighted contributions and total', scalars(['loss_det', 'loss_match_weighted', 'loss_gray_weighted', 'loss_total']))])
-    figure('schedule', [('learning rate', scalars(['lr'])), ('task coefficients', scalars(['matching_weight', 'gray_weight'])),
+    figure('schedule', [('learning rate', scalars(['lr', 'backbone_lr'] if v2 else ['lr'])), ('task coefficients', scalars(['matching_weight', 'gray_weight'])),
                        ('noise cap and sampled ratios', scalars(['ratio_limit', 'ratio_mean', 'ratio_max'])),
                        ('gradient clipping', scalars(['gradient_norm_before_clip', 'clip_factor'])),
                        ('time seconds', scalars(['update_seconds']))])
     if diagnostics:
         def diagnostic_curves(keys):
-            return [(bucket+'/'+key, [(r['step'], r['buckets'][bucket]['mean'].get(key)) for r in diagnostics], False)
-                    for key in keys for bucket in ('clean', '1', '4', '16', '64', '100')]
+            groups = [('full', [r for r in diagnostics if r['full_protocol']]),
+                      ('subset', [r for r in diagnostics if not r['full_protocol']])] if v2 else [('', diagnostics)]
+            return [(bucket+'/'+key+'/'+label, [(r['step'], r['buckets'][bucket]['mean'].get(key)) for r in values], False)
+                    for label, values in groups if values for key in keys for bucket in ('clean', *noisy_buckets)]
         figure('detection_geometry', [('teacher recall1px', diagnostic_curves(['formal_recall_1px'])),
                                     ('teacher recall3px', diagnostic_curves(['formal_recall_3px'])),
                                     ('fixedK teacher1px', diagnostic_curves(['top400_recall_1px', 'top1024_recall_1px'])),
@@ -78,7 +85,7 @@ def analyze_run(run: str | Path) -> dict:
                                     ('conditional phase Top1', diagnostic_curves(['phase_top1'])),
                                     ('automatic H-AUC@1/3/5 (A unavailable)',
                                      [(bucket+'/'+key, [(r['step'], r['geometry']['buckets'][bucket][key] if r['geometry'] else None) for r in geometry], False)
-                                      for bucket in ('1', '4', '16', '64', '100') for key in ('h_auc_1', 'h_auc_3', 'h_auc_5')])])
+                                      for bucket in noisy_buckets for key in ('h_auc_1', 'h_auc_3', 'h_auc_5')])])
         figure('gray', [('weighted gray error', diagnostic_curves(['gray_weighted_mse'])),
                         ('ordinary gray error', diagnostic_curves(['gray_ordinary_mse'])),
                         ('edge gradient error', diagnostic_curves(['edge_gradient_mse'])),
@@ -96,6 +103,8 @@ def analyze_run(run: str | Path) -> dict:
     validation_costs = [r for batch in overhead for r in batch['validation']]
     saves = [r for batch in overhead for r in batch['checkpoint']]
     estimate = sum(phases[p]['mean_update_seconds']*count for p, count in [('A', 50000), ('B', 5000), ('C', 45000)]) if len(phases) == 3 else None
+    if v2:
+        estimate = phases['C']['mean_update_seconds']*config['schedule']['updates']
     comparisons = {}
     for label, filename in [('last', 'latest.pt'), ('best_det', 'best_det.pt'), ('best_geometry', 'best_geometry.pt')]:
         target = run/filename
@@ -117,7 +126,8 @@ def analyze_run(run: str | Path) -> dict:
     lines = [f'# RawFeat staged run: {rows[-1]["step"]}/{config["schedule"]["updates"]}',
              f'Identity: `{json.loads((run/"run_manifest.json").read_text())["identity_sha256"]}`',
              '', 'Raw data: scalars.jsonl, diagnostics/step_*/per_view.jsonl and per_pair.jsonl, validation/step_*/per_pair.jsonl.',
-             'A has no matching/geometry loss; missing values remain null. Best selection requires the full256 protocol, with geometry selected only in C.',
+             ('V2 trains jointly throughout. Selection uses full COCO+MegaDepth validation, seven noisy buckets, scene means and legacy COCO tolerance.' if v2 else
+              'A has no matching/geometry loss; missing values remain null. Best selection requires the full256 protocol, with geometry selected only in C.'),
              '', '|Phase|Updates|Mean seconds/update|First total|Last total|', '|---|---:|---:|---:|---:|']
     lines += [f'|{p}|{v["updates"]}|{v["mean_update_seconds"]:.3f}|{v["first_loss"]:.5f}|{v["last_loss"]:.5f}|' for p, v in phases.items()]
     if geometry:
@@ -129,7 +139,7 @@ def analyze_run(run: str | Path) -> dict:
             lines += ['', '|Bucket|H-AUC@1|H-AUC@3|H-AUC@5|Failures|', '|---|---:|---:|---:|---:|']
             lines += [f'|{bucket}|{v["h_auc_1"]:.6f}|{v["h_auc_3"]:.6f}|{v["h_auc_5"]:.6f}|{v["homography_failures"]}|' for bucket, v in g['buckets'].items()]
     lines += ['', 'Best/last comparison is stored with per-noise detector/geometry and the paired baseline in summary.json. Missing full-protocol best checkpoints remain null, including smoke subset selection.',
-              f'100000-update compute estimate: {estimate} seconds; validation/saving costs are listed in summary.json. This is an estimate, not a timing guarantee.',
+              f'{config["schedule"]["updates"]}-update compute estimate: {estimate} seconds; validation/saving costs are listed in summary.json. This is an estimate, not a timing guarantee.',
               'Use all per-step and per-noise records to interpret gray/geometry; a short smoke score does not establish the stage allocation or gray10 as optimal.']
     (output/'report.md').write_text('\n'.join(lines)+'\n')
     return {k: report[k] for k in ('run', 'completed_updates', 'complete', 'formal_training_seconds_estimate')}

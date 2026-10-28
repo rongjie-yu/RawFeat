@@ -1,0 +1,15 @@
+{
+  "completed_updates": 30000,
+  "pairs_per_update": 16,
+  "sample_cursor": 480000,
+  "source_pair_counts": {
+    "megadepth": 288000,
+    "coco": 192000
+  },
+  "all_logged_loss_and_gradients_finite": true,
+  "clipped_updates": 32,
+  "maximum_sampled_ratio": 224.99941517498385,
+  "architecture_changed_from_v1": false,
+  "loss_formulas_changed_from_v1": false,
+  "precision": "FP32"
+}

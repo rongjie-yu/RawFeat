@@ -49,9 +49,31 @@ def _parser() -> argparse.ArgumentParser:
     training.add_argument("--output", help="use a separate run directory; repeat this override when resuming")
     training.add_argument("--allow-gpu-change", action="store_true",
                           help="resume on another single GPU of the same model; record the identity transition")
+    training.add_argument("--allow-probe-fix", action="store_true",
+                          help="resume across the exact reviewed gradient diagnostic repair; record the identity transition")
 
     preflight = sub.add_parser("preflight")
     preflight.add_argument("--config", default="configs/formal.yaml")
+
+    v2_prepare = sub.add_parser('v2-prepare', help='index RGB sources and create scene-disjoint V2 manifests')
+    v2_prepare.add_argument('--coco-root', default='/homes/rongjie/datasets/coco')
+    v2_prepare.add_argument('--megadepth-root', default='/homes/rongjie/datasets/megadepth/rgb')
+    v2_prepare.add_argument('--output', default='manifests/v2/sources.json')
+    v2_prepare.add_argument('--smoke', action='store_true')
+    v2_cache = sub.add_parser('v2-cache', help='build the fixed V2 GPU validation cache')
+    v2_cache.add_argument('--config', default='configs/formal_v2.yaml')
+    v2_validate = sub.add_parser('v2-validate', help='evaluate a checkpoint on fixed V2 validation')
+    v2_validate.add_argument('--config', default='configs/formal_v2.yaml')
+    v2_validate.add_argument('--checkpoint', required=True)
+    v2_validate.add_argument('--output', required=True)
+    hp_v2 = sub.add_parser('hpatches-v2-extra', help='evaluate HPatches at symmetric ratios150/225')
+    hp_v2.add_argument('--config', default='configs/formal_v2.yaml')
+    hp_v2.add_argument('--checkpoint', required=True)
+    hp_v2.add_argument('--manifest', default='manifests/hpatches_synthetic_raw_v1.json')
+    hp_v2.add_argument('--cache', default='outputs/hpatches_synthetic_raw_v1/cache_full')
+    hp_v2.add_argument('--output', required=True)
+    hp_v2.add_argument('--sequences', nargs='+')
+    hp_v2.add_argument('--max-pairs', type=int)
 
     export = sub.add_parser("export")
     export.add_argument("--checkpoint", default="weights/v1/checkpoint_step_096000.pt")
@@ -142,6 +164,45 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _parser().parse_args()
+    if args.command == 'hpatches-v2-extra':
+        from .config import load_config
+        from .hpatches_v2 import evaluate_extra
+        from .runtime import configure_fp32
+        configure_fp32()
+        print(json.dumps(evaluate_extra(load_config(args.config), args.checkpoint, args.manifest,
+                                       args.cache, args.output, sequence_names=args.sequences, max_pairs=args.max_pairs)))
+        return
+    if args.command == 'v2-prepare':
+        from .data_v2 import prepare_sources
+        print(json.dumps(prepare_sources(args.coco_root, args.megadepth_root, args.output, smoke=args.smoke)))
+        return
+    if args.command in ('v2-cache', 'v2-validate'):
+        from .config import is_v2, load_config
+        from .runtime import configure_fp32
+        config = load_config(args.config)
+        if not is_v2(config) or not torch.cuda.is_available():
+            raise RuntimeError('V2 config and CUDA are required')
+        configure_fp32()
+        device = torch.device(config['device'])
+        torch.cuda.set_device(device)
+        if args.command == 'v2-cache':
+            from .data import PairGenerator
+            from .noise import CanonELD
+            from .sensor import load_invisp
+            from .validation_v2 import cache_validation
+            generator = PairGenerator(load_invisp(config['invisp_repo'], device), CanonELD(config['eld_calibration']), device)
+            result = cache_validation(config, generator)
+        else:
+            from .identity import check_schema
+            from .model import RawFeatureExtractor
+            from .validation_v2 import evaluate
+            stored = torch.load(args.checkpoint, map_location='cpu', weights_only=False)
+            check_schema(stored)
+            model = RawFeatureExtractor().to(device).eval()
+            model.load_state_dict(stored['student'], strict=True)
+            result = evaluate(config, model, args.output, images=config['validation_images'])
+        print(json.dumps(result, allow_nan=False))
+        return
     if args.command == "manifest":
         from .validation import create_manifest, manifest_digest
         report = create_manifest(args.coco_root, args.output)
@@ -151,7 +212,8 @@ def main() -> None:
     if args.command == "train":
         from .training import train
         print(json.dumps(train(args.config, resume=args.resume, max_updates=args.max_updates,
-                               output_root=args.output, allow_gpu_change=args.allow_gpu_change)))
+                               output_root=args.output, allow_gpu_change=args.allow_gpu_change,
+                               allow_probe_fix=args.allow_probe_fix)))
         return
     if args.command == "preflight":
         from .training import formal_preflight, load_config

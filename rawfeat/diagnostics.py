@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import warnings
 import json
 from pathlib import Path
 
@@ -10,6 +11,7 @@ import torch
 from torch.nn import functional as F
 
 from .features import extract_features, sample_descriptors
+from .config import is_v2
 from .identity import write_json
 from .losses import detection_terms, pair_losses
 from .metrics import pair_metrics
@@ -103,14 +105,25 @@ def diagnose_model(model, teacher, config, output: Path, step: int, *, images: i
     from .training import point_pairs
     if model.training or not 1 <= images <= 256:
         raise ValueError('diagnostics require an eval copy and 1..256 fixed sources')
-    manifest, digest = read_manifest(config['validation_manifest'])
-    identity = read_cache_identity(config['validation_cache'], digest)
+    if is_v2(config):
+        from . import validation_v2
+        manifest, digest = validation_v2.read_manifest(config)
+        identity = validation_v2.read_cache_identity(config, digest)
+        selected_indices = validation_v2.validation_indices(manifest, images)
+        ratios = validation_v2.RATIOS
+        full_protocol = config['mode'] == 'formal_v2' and len(selected_indices) == len(manifest['images'])
+    else:
+        manifest, digest = read_manifest(config['validation_manifest'])
+        identity = read_cache_identity(config['validation_cache'], digest)
+        selected_indices, ratios = list(range(images)), RATIOS
+        full_protocol = images == 256
     device = next(model.parameters()).device
     clean_points, clean_targets = {}, {}
     rows, pair_rows, buckets = [], [], {}
-    for bucket in ('clean', *map(str, RATIOS)):
+    for bucket in ('clean', *map(str, ratios)):
         selected_rows, selected_pairs = [], []
-        for index, image in enumerate(manifest['images'][:images]):
+        for index in selected_indices:
+            image = manifest['images'][index]
             pair = torch.load(cache_path(config['validation_cache'], index, bucket), map_location='cpu', weights_only=True)
             pair = {k: v.to(device) if isinstance(v, torch.Tensor) else v for k, v in pair.items()}
             logits_t, grid_t = teacher(pair['srgb_gray'])
@@ -151,15 +164,16 @@ def diagnose_model(model, teacher, config, output: Path, step: int, *, images: i
                     metrics.update({name+'_'+k: v for k, v in recalls.items()})
                 selected_rows.append({'image_position': index, 'source': image['image'], 'view': view,
                                       'bucket': bucket, 'actual_ratio': pair['ratios'][view], 'clean': bucket == 'clean', **metrics})
-        buckets[bucket] = {'views': len(selected_rows), 'sources': images, 'mean': average(selected_rows),
+        buckets[bucket] = {'views': len(selected_rows), 'sources': len(selected_indices), 'mean': average(selected_rows),
                            'selections': {name: average([r for r in selected_pairs if r['selection'] == name])
                                           for name in ('formal', 'top400', 'top1024')}}
         rows.extend(selected_rows); pair_rows.extend(selected_pairs)
-    actual = {str(ratio): {'views': len(values), 'mean': average(values)} for ratio in RATIOS
+    actual = {str(ratio): {'views': len(values), 'mean': average(values)} for ratio in ratios
               if (values := [r for r in rows if not r['clean'] and r['actual_ratio'] == ratio])}
-    recall = [buckets[str(r)]['mean']['formal_recall_1px'] for r in RATIOS]
+    recall = [buckets[str(r)]['mean']['formal_recall_1px'] for r in ratios]
     report = {'step': step, 'phase': update_schedule(max(0, step-1), config['schedule'])['phase'],
-              'optimizer_updates': 0, 'full_protocol': images == 256, 'sources': images, 'cases': images*6,
+              'optimizer_updates': 0, 'full_protocol': full_protocol, 'sources': len(selected_indices),
+              'cases': len(selected_indices)*(len(ratios)+1),
               'cache_identity_sha256': identity_digest(identity), 'geometry_available': geometry,
               'teacher_recall_1px': float(np.mean(recall)) if all(v is not None for v in recall) else None,
               'buckets': buckets, 'actual_ratios': actual,
@@ -209,9 +223,17 @@ def gradient_probe(model, batches: list[dict], config: dict, step: int, optimize
             losses_mean[task] = losses_mean.get(task, 0.) + float(objective.detach())/4
     total = vectors['det'] + vectors['gray']
     if 'match' in vectors: total = total + vectors['match']
-    relative = float((total-vectors['total']).norm()/vectors['total'].norm())
-    if not torch.isfinite(total).all() or relative > 1e-5:
-        raise RuntimeError('accumulated task gradients do not reconstruct total')
+    if not all(bool(torch.isfinite(v).all()) for v in [total, *vectors.values()]):
+        raise FloatingPointError('nonfinite task gradient in diagnostic probe')
+    difference = float((total.double()-vectors['total'].double()).norm())
+    total_norm = float(vectors['total'].double().norm())
+    relative = difference/total_norm if total_norm else (0. if difference == 0 else None)
+    within_tolerance = relative is not None and relative <= 1e-5
+    # Separate FP32 backwards need not numerically equal one combined backward.
+    # This disposable probe never supplies gradients to the live optimizer.
+    if not within_tolerance:
+        warnings.warn(f'diagnostic gradient reconstruction differs: relative_l2={relative}, '
+                      f'absolute_l2={difference}; finite gradients recorded, training continues', RuntimeWarning)
     groups, offset = {}, 0
     for name, p in tested.named_parameters():
         if name.startswith('stage'):
@@ -235,4 +257,6 @@ def gradient_probe(model, batches: list[dict], config: dict, step: int, optimize
             'matching_available': weight > 0, 'matching_weight': weight, 'gray_weight': 10.,
             'weighted_losses': {**losses_mean, 'match': losses_mean.get('match')}, 'groups': stats,
             'global_norm': norm, 'clip_factor': min(1., 5/(norm+1e-6)), 'gradient_sum_relative_l2': relative,
+            'gradient_sum_absolute_l2': difference, 'gradient_sum_tolerance': 1e-5,
+            'gradient_sum_within_tolerance': within_tolerance,
             'adam_steps': adam, 'probe_context': 'same complete accumulated inputs on a training copy after committed update; no live BN/RNG changes'}

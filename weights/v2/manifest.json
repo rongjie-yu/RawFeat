@@ -1,0 +1,465 @@
+{
+  "version": "v2",
+  "published_date": "2026-10-28",
+  "result_steps": [
+    27000,
+    28000,
+    29000,
+    30000
+  ],
+  "single_preferred_checkpoint": null,
+  "weight_format": "Byte-exact full unfused training checkpoints: student including gray and BN, AdamW, scheduler, RNG and strict identity; not deployment exports.",
+  "completed_training_updates": 30000,
+  "seed": 42,
+  "initial_checkpoint": "weights/v1/checkpoint_step_096000.pt",
+  "initial_checkpoint_sha256": "d9a738b98e26e18e420062a83e575a300172a91f87bb5f0a687539203d675075",
+  "training_summary": {
+    "completed_updates": 30000,
+    "pairs_per_update": 16,
+    "sample_cursor": 480000,
+    "source_pair_counts": {
+      "megadepth": 288000,
+      "coco": 192000
+    },
+    "all_logged_loss_and_gradients_finite": true,
+    "clipped_updates": 32,
+    "maximum_sampled_ratio": 224.99941517498385,
+    "architecture_changed_from_v1": false,
+    "loss_formulas_changed_from_v1": false,
+    "precision": "FP32"
+  },
+  "schedule": {
+    "updates": 30000,
+    "detection_updates": 0,
+    "matching_ramp": 0,
+    "lr_initial": 1e-05,
+    "lr_peak": 0.0001,
+    "lr_min": 1e-05,
+    "lr_warmup": 1000,
+    "ratio_start": 1000,
+    "ratio_end": 10000,
+    "ratio_initial": 100,
+    "ratio_max": 225,
+    "backbone_lr_multiplier": 0.3
+  },
+  "training_identity_sha256": "44b5ec737f8532c1f67c962c98a2156c984c856128ab142922b288ac798e69b8",
+  "recorded_dependencies": {
+    "torch": "2.12.1",
+    "numpy": "2.5.0",
+    "opencv-python-headless": "5.0.0.93",
+    "albumentations": "2.0.8",
+    "kornia": "0.8.2",
+    "PyYAML": "6.0.3",
+    "tensorboard": "2.20.0",
+    "scipy": "1.16.2",
+    "colour-demosaicing": "0.2.6",
+    "thop": "0.1.1-2209072238",
+    "matplotlib": "3.11.0"
+  },
+  "recorded_environment_file_sha256": {
+    "requirements.txt": "4e2d50dbffbd66d5f85eb69a09b5184065037c0fc87e7dd096ac607b8a186b39",
+    "environment.yml": "d276db7fff80cf6042393436d21aad04d2899d9913f2c791b6412d972f2386ab"
+  },
+  "hpatches_reference": {
+    "result_label": "step_000000",
+    "student_exactly_equals_v1_step96000": true,
+    "checkpoint_sha256": "64e523329bdba5fce867b5a9a2aa7e8c56402a9bb8a7d85d8da74ab8b32e8e5f",
+    "cache_identity_sha256": "0128d7025dfed2745cdc15e330ba121d8337512a431177ca0c2ed9499e43f05a",
+    "manifest_sha256": "1e0f775acd0ac1d47d981ddbf3bbb2870e2b0e7ed390e583a1e957b5d413c147",
+    "full_protocol": true,
+    "pairs_per_condition": 580,
+    "legacy_five_score": 0.4860837692700583,
+    "baseline_five_score": 0.4689483427256345,
+    "by_condition": {
+      "clean": 0.6413135857135057,
+      "ratio1": 0.6243570916046357,
+      "ratio4": 0.5823249335175957,
+      "ratio16": 0.5088870629308553,
+      "ratio64": 0.38336702696722136,
+      "ratio100": 0.33148273132998374,
+      "ratio150": 0.2394769028034703,
+      "ratio225": 0.18122893375569374
+    }
+  },
+  "artifacts": [
+    {
+      "path": "weights/v2/checkpoint_step_027000.pt",
+      "step": 27000,
+      "phase": "C",
+      "sample_cursor": 432000,
+      "sha256": "ea45509d9bf1f247b934113b77e83c7756db8b875a95af80e88cf5b2298e4a07",
+      "size_bytes": 8281687,
+      "checkpoint_schema": "rawfeat.staged.v1",
+      "identity_sha256": "44b5ec737f8532c1f67c962c98a2156c984c856128ab142922b288ac798e69b8",
+      "parameter_count_with_gray": 673349,
+      "strict_model_load": true,
+      "all_student_tensors_finite": true,
+      "optimizer_parameter_states": 88,
+      "adam_step": 27000,
+      "hpatches": {
+        "checkpoint_sha256": "ea45509d9bf1f247b934113b77e83c7756db8b875a95af80e88cf5b2298e4a07",
+        "cache_identity_sha256": "0128d7025dfed2745cdc15e330ba121d8337512a431177ca0c2ed9499e43f05a",
+        "manifest_sha256": "1e0f775acd0ac1d47d981ddbf3bbb2870e2b0e7ed390e583a1e957b5d413c147",
+        "full_protocol": true,
+        "pairs_per_condition": 580,
+        "legacy_five_score": 0.47645085173999446,
+        "baseline_five_score": 0.4689483427256345,
+        "by_condition": {
+          "clean": 0.6300226070988795,
+          "ratio1": 0.604967955630915,
+          "ratio4": 0.5773601014963512,
+          "ratio16": 0.493249265767377,
+          "ratio64": 0.3882181471380694,
+          "ratio100": 0.3184587886672596,
+          "ratio150": 0.257807384102509,
+          "ratio225": 0.19166748396281538
+        },
+        "paired_vs_v1": {
+          "all": {
+            "legacy_five": {
+              "delta_percentage_points": -0.963291753006393,
+              "ci95_percentage_points": [
+                -1.892390148947979,
+                -0.02691918764391907
+              ],
+              "sequences": 116
+            },
+            "extra_two": {
+              "delta_percentage_points": 1.4384515753080105,
+              "ci95_percentage_points": [
+                0.04449239838226096,
+                2.8396940900719376
+              ],
+              "sequences": 116
+            }
+          },
+          "illumination": {
+            "legacy_five": {
+              "delta_percentage_points": -1.4054822422956172,
+              "ci95_percentage_points": [
+                -2.9088487754683747,
+                0.04812698470395869
+              ],
+              "sequences": 57
+            },
+            "extra_two": {
+              "delta_percentage_points": 2.3960553240357787,
+              "ci95_percentage_points": [
+                -0.016148325853180785,
+                4.724608176580647
+              ],
+              "sequences": 57
+            }
+          },
+          "viewpoint": {
+            "legacy_five": {
+              "delta_percentage_points": -0.5360907718286676,
+              "ci95_percentage_points": [
+                -1.6754821582971993,
+                0.6279186333185531
+              ],
+              "sequences": 59
+            },
+            "extra_two": {
+              "delta_percentage_points": 0.5133089706049129,
+              "ci95_percentage_points": [
+                -0.9038310734144713,
+                2.017499186805749
+              ],
+              "sequences": 59
+            }
+          }
+        }
+      },
+      "fixed_validation": null
+    },
+    {
+      "path": "weights/v2/checkpoint_step_028000.pt",
+      "step": 28000,
+      "phase": "C",
+      "sample_cursor": 448000,
+      "sha256": "5cf7bbebf71c7c7420032597a2d854848bd1f079de3b4e142021ef41cacd274e",
+      "size_bytes": 8286743,
+      "checkpoint_schema": "rawfeat.staged.v1",
+      "identity_sha256": "44b5ec737f8532c1f67c962c98a2156c984c856128ab142922b288ac798e69b8",
+      "parameter_count_with_gray": 673349,
+      "strict_model_load": true,
+      "all_student_tensors_finite": true,
+      "optimizer_parameter_states": 88,
+      "adam_step": 28000,
+      "hpatches": {
+        "checkpoint_sha256": "5cf7bbebf71c7c7420032597a2d854848bd1f079de3b4e142021ef41cacd274e",
+        "cache_identity_sha256": "0128d7025dfed2745cdc15e330ba121d8337512a431177ca0c2ed9499e43f05a",
+        "manifest_sha256": "1e0f775acd0ac1d47d981ddbf3bbb2870e2b0e7ed390e583a1e957b5d413c147",
+        "full_protocol": true,
+        "pairs_per_condition": 580,
+        "legacy_five_score": 0.47661130209061603,
+        "baseline_five_score": 0.4689483427256345,
+        "by_condition": {
+          "clean": 0.6393059502464944,
+          "ratio1": 0.618439857615479,
+          "ratio4": 0.5902542966732691,
+          "ratio16": 0.49146289595756043,
+          "ratio64": 0.36568631265697804,
+          "ratio100": 0.31721314754979363,
+          "ratio150": 0.23951617528652322,
+          "ratio225": 0.20888692832198633
+        },
+        "paired_vs_v1": {
+          "all": {
+            "legacy_five": {
+              "delta_percentage_points": -0.9472467179442269,
+              "ci95_percentage_points": [
+                -1.9367524022865905,
+                0.014311536071372435
+              ],
+              "sequences": 116
+            },
+            "extra_two": {
+              "delta_percentage_points": 1.3848633524672738,
+              "ci95_percentage_points": [
+                0.09297702182726561,
+                2.666622314794824
+              ],
+              "sequences": 116
+            }
+          },
+          "illumination": {
+            "legacy_five": {
+              "delta_percentage_points": -1.1416471892281583,
+              "ci95_percentage_points": [
+                -2.605676629637417,
+                0.23728189325384944
+              ],
+              "sequences": 57
+            },
+            "extra_two": {
+              "delta_percentage_points": 1.7007383798298081,
+              "ci95_percentage_points": [
+                -0.2243139443428893,
+                3.6262021084365084
+              ],
+              "sequences": 57
+            }
+          },
+          "viewpoint": {
+            "legacy_five": {
+              "delta_percentage_points": -0.7594360931444969,
+              "ci95_percentage_points": [
+                -2.040415886797137,
+                0.5591459822705245
+              ],
+              "sequences": 59
+            },
+            "extra_two": {
+              "delta_percentage_points": 1.0796959531509265,
+              "ci95_percentage_points": [
+                -0.5992935980022966,
+                2.7452297859272714
+              ],
+              "sequences": 59
+            }
+          }
+        }
+      },
+      "fixed_validation": {
+        "score": 0.6153221670490823,
+        "legacy_coco_score": 0.6634822313999758,
+        "coco_clean_score": 0.8781085995724425,
+        "full_protocol": true,
+        "selection_eligible": false
+      }
+    },
+    {
+      "path": "weights/v2/checkpoint_step_029000.pt",
+      "step": 29000,
+      "phase": "C",
+      "sample_cursor": 464000,
+      "sha256": "163d08f73be635396367f478bfa5e76db5d477bdffba63a50994cdab0808af1b",
+      "size_bytes": 8281687,
+      "checkpoint_schema": "rawfeat.staged.v1",
+      "identity_sha256": "44b5ec737f8532c1f67c962c98a2156c984c856128ab142922b288ac798e69b8",
+      "parameter_count_with_gray": 673349,
+      "strict_model_load": true,
+      "all_student_tensors_finite": true,
+      "optimizer_parameter_states": 88,
+      "adam_step": 29000,
+      "hpatches": {
+        "checkpoint_sha256": "163d08f73be635396367f478bfa5e76db5d477bdffba63a50994cdab0808af1b",
+        "cache_identity_sha256": "0128d7025dfed2745cdc15e330ba121d8337512a431177ca0c2ed9499e43f05a",
+        "manifest_sha256": "1e0f775acd0ac1d47d981ddbf3bbb2870e2b0e7ed390e583a1e957b5d413c147",
+        "full_protocol": true,
+        "pairs_per_condition": 580,
+        "legacy_five_score": 0.47564552601195614,
+        "baseline_five_score": 0.4689483427256345,
+        "by_condition": {
+          "clean": 0.6386883764662619,
+          "ratio1": 0.6177703981435505,
+          "ratio4": 0.5685959134173805,
+          "ratio16": 0.5017152348725961,
+          "ratio64": 0.3712380900054143,
+          "ratio100": 0.3189079936208396,
+          "ratio150": 0.2540222311225431,
+          "ratio225": 0.19536823200768438
+        },
+        "paired_vs_v1": {
+          "all": {
+            "legacy_five": {
+              "delta_percentage_points": -1.043824325810219,
+              "ci95_percentage_points": [
+                -2.018490092922644,
+                -0.0871614615452191
+              ],
+              "sequences": 116
+            },
+            "extra_two": {
+              "delta_percentage_points": 1.4342313285531672,
+              "ci95_percentage_points": [
+                -0.05335593978906504,
+                2.865952480584383
+              ],
+              "sequences": 116
+            }
+          },
+          "illumination": {
+            "legacy_five": {
+              "delta_percentage_points": -1.6337535059242922,
+              "ci95_percentage_points": [
+                -2.924818820514177,
+                -0.3630409287099273
+              ],
+              "sequences": 57
+            },
+            "extra_two": {
+              "delta_percentage_points": 0.5424824377946686,
+              "ci95_percentage_points": [
+                -1.9150011194641123,
+                2.911178556659764
+              ],
+              "sequences": 57
+            }
+          },
+          "viewpoint": {
+            "legacy_five": {
+              "delta_percentage_points": -0.4738927450220465,
+              "ci95_percentage_points": [
+                -1.8851434902872073,
+                0.8958145962579773
+              ],
+              "sequences": 59
+            },
+            "extra_two": {
+              "delta_percentage_points": 2.2957514433537503,
+              "ci95_percentage_points": [
+                0.7987877137832722,
+                3.9028543861488156
+              ],
+              "sequences": 59
+            }
+          }
+        }
+      },
+      "fixed_validation": null
+    },
+    {
+      "path": "weights/v2/checkpoint_step_030000.pt",
+      "step": 30000,
+      "phase": "C",
+      "sample_cursor": 480000,
+      "sha256": "f2942d28f027b9f234833edade1ca4afcbe8fa7619c0e86b646f16790c81437e",
+      "size_bytes": 8286743,
+      "checkpoint_schema": "rawfeat.staged.v1",
+      "identity_sha256": "44b5ec737f8532c1f67c962c98a2156c984c856128ab142922b288ac798e69b8",
+      "parameter_count_with_gray": 673349,
+      "strict_model_load": true,
+      "all_student_tensors_finite": true,
+      "optimizer_parameter_states": 88,
+      "adam_step": 30000,
+      "hpatches": {
+        "checkpoint_sha256": "f2942d28f027b9f234833edade1ca4afcbe8fa7619c0e86b646f16790c81437e",
+        "cache_identity_sha256": "0128d7025dfed2745cdc15e330ba121d8337512a431177ca0c2ed9499e43f05a",
+        "manifest_sha256": "1e0f775acd0ac1d47d981ddbf3bbb2870e2b0e7ed390e583a1e957b5d413c147",
+        "full_protocol": true,
+        "pairs_per_condition": 580,
+        "legacy_five_score": 0.4711677375518043,
+        "baseline_five_score": 0.4689483427256345,
+        "by_condition": {
+          "clean": 0.629059667738861,
+          "ratio1": 0.6138522215393083,
+          "ratio4": 0.5795381513854554,
+          "ratio16": 0.4857961710208449,
+          "ratio64": 0.3572239961192527,
+          "ratio100": 0.31942814769416017,
+          "ratio150": 0.2644834772677257,
+          "ratio225": 0.18580916538320738
+        },
+        "paired_vs_v1": {
+          "all": {
+            "legacy_five": {
+              "delta_percentage_points": -1.4916031718254092,
+              "ci95_percentage_points": [
+                -2.3810668709283247,
+                -0.6276965851208264
+              ],
+              "sequences": 116
+            },
+            "extra_two": {
+              "delta_percentage_points": 1.4793403045884497,
+              "ci95_percentage_points": [
+                0.18000289596103364,
+                2.7783307165806646
+              ],
+              "sequences": 116
+            }
+          },
+          "illumination": {
+            "legacy_five": {
+              "delta_percentage_points": -2.192524589990315,
+              "ci95_percentage_points": [
+                -3.556440224882804,
+                -0.8637131066698784
+              ],
+              "sequences": 57
+            },
+            "extra_two": {
+              "delta_percentage_points": 2.1667234238825337,
+              "ci95_percentage_points": [
+                -0.11147908659880673,
+                4.430431420238392
+              ],
+              "sequences": 57
+            }
+          },
+          "viewpoint": {
+            "legacy_five": {
+              "delta_percentage_points": -0.8144418017338897,
+              "ci95_percentage_points": [
+                -1.951745660380792,
+                0.30723040548421576
+              ],
+              "sequences": 59
+            },
+            "extra_two": {
+              "delta_percentage_points": 0.8152583079822994,
+              "ci95_percentage_points": [
+                -0.4721276754797511,
+                2.1605858201697723
+              ],
+              "sequences": 59
+            }
+          }
+        }
+      },
+      "fixed_validation": {
+        "score": 0.6224021973715297,
+        "legacy_coco_score": 0.6807317355368288,
+        "coco_clean_score": 0.8759240141662303,
+        "full_protocol": true,
+        "selection_eligible": true
+      }
+    }
+  ],
+  "results_directory": "docs/results/v2",
+  "full_training_export_validation_completed": false,
+  "publication_note": "27k/28k/29k/30k are the four published V2 results. V1 initialization is the comparison reference; 10k and recovery states are not V2 release artifacts. No checkpoint was promoted using HPatches test results."
+}

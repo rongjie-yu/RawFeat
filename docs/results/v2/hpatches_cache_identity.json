@@ -1,0 +1,26 @@
+{
+  "protocol": "rawfeat.hpatches.synthetic_raw.v1",
+  "recipe": "rawfeat.hpatches.image_cache.v1",
+  "manifest_sha256": "1e0f775acd0ac1d47d981ddbf3bbb2870e2b0e7ed390e583a1e957b5d413c147",
+  "dataset_integrity_sha256": "06ad61ea8ebbc8a3e15461ad4e84412c336a7782d20c58b4efa5f1b0d73501c9",
+  "pipeline_sha256": "faebea3a32c8e3adebc4b66c8b79404c2e5430b33631866a69bf5a2012150c08",
+  "invisp_checkpoint_sha256": "483c92ea7f3f3e05e4622b0b7fc775aaf92545362773cb97c10970bd5dff1889",
+  "invisp_source_sha256": [
+    "1ecf0b5e038736c419b585f6053e93590b9d8c178a11bdcb8e80c44b4a9f9cb9",
+    "9f77ad816b540fbe1a3ee0c080c27ee086b60c0a6b09a25e446ed1686077ae32"
+  ],
+  "eld_calibration_sha256": "3f74dd0f60a44b889b8055a172517fe55ea47c14fdec9df671f39a0c32c833a8",
+  "conditions": [
+    "clean",
+    "ratio1",
+    "ratio4",
+    "ratio16",
+    "ratio64",
+    "ratio100"
+  ],
+  "dtype": "float32",
+  "target_size": [
+    480,
+    640
+  ]
+}

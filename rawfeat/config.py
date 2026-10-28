@@ -11,8 +11,37 @@ SCHEDULE_FIELDS = {'updates', 'detection_updates', 'matching_ramp', 'lr_initial'
                    'lr_warmup', 'ratio_start', 'ratio_end'}
 
 
+def is_v2(config: dict) -> bool:
+    return config.get('mode') in ('formal_v2', 'smoke_v2')
+
+
+def load_v2(config: dict) -> dict:
+    extra = {'source_manifest', 'initial_checkpoint', 'legacy_validation_manifest', 'legacy_validation_cache'}
+    if set(config) != TOP_FIELDS | extra or not isinstance(config.get('schedule'), dict):
+        raise ValueError('V2 configuration schema differs')
+    schedule = config['schedule']
+    if set(schedule) != SCHEDULE_FIELDS | {'ratio_initial', 'ratio_max', 'backbone_lr_multiplier'}:
+        raise ValueError('V2 configuration schema differs')
+    formal = config['mode'] == 'formal_v2'
+    keys = ('updates', 'detection_updates', 'matching_ramp', 'lr_warmup', 'ratio_start', 'ratio_end')
+    if tuple(schedule[k] for k in keys) != ((30000, 0, 0, 1000, 1000, 10000) if formal else (20, 0, 0, 2, 2, 5)):
+        raise ValueError('V2 schedule boundaries differ from the selected formal/smoke budget')
+    if tuple(schedule[k] for k in ('lr_initial', 'lr_peak', 'lr_min', 'ratio_initial', 'ratio_max', 'backbone_lr_multiplier')) != (1e-5, 1e-4, 1e-5, 100, 225, .3):
+        raise ValueError('V2 requires approved learning rates and log-uniform ratio100 -> 225')
+    if tuple(config[k] for k in ('batch_pairs', 'accumulation', 'seed', 'gradient_clip', 'weight_decay')) != (4, 4, 42, 5., 1e-4):
+        raise ValueError('V2 requires four pairs x four accumulation, seed42, clip5 and decay1e-4')
+    intervals = ('log_interval', 'validation_interval', 'diagnostic_interval', 'checkpoint_interval', 'probe_interval')
+    if tuple(config[k] for k in intervals) != ((20, 2000, 1000, 1000, 5000) if formal else (1, 10, 10, 5, 20)):
+        raise ValueError('V2 recording intervals differ')
+    if (config['validation_images'], config['diagnostic_images']) != ((256, 16) if formal else (2, 2)):
+        raise ValueError('V2 validation/diagnostic source counts differ')
+    return config
+
+
 def load_config(path: str | Path) -> dict:
     config = yaml.safe_load(Path(path).read_text())
+    if isinstance(config, dict) and is_v2(config):
+        return load_v2(config)
     if not isinstance(config, dict) or set(config) != TOP_FIELDS or set(config['schedule']) != SCHEDULE_FIELDS:
         raise ValueError('configuration must use the current staged schema; unknown/missing fields')
     if config['mode'] not in ('formal', 'smoke'):

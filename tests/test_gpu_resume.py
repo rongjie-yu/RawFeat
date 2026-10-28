@@ -134,12 +134,22 @@ def test_gpu_migration_option_requires_resume():
         train('configs/formal.yaml', allow_gpu_change=True)
 
 
-def test_reviewed_revision_hashes_match_installed_source():
-    from rawfeat.identity import GPU_RESUME_REVISION, ROOT
+def test_reviewed_migration_registry_remains_immutable():
+    from rawfeat.identity import GPU_RESUME_REVISION
     from rawfeat.validation import file_digest
     revision = json.loads(GPU_RESUME_REVISION.read_text())
-    assert revision['target_code_sha256'] == {str(path.relative_to(ROOT)): file_digest(path)
-                                             for path in sorted((ROOT/'rawfeat').glob('*.py'))}
+    assert file_digest(GPU_RESUME_REVISION) == 'aae90419f71662ddd63a459274c7658c0572667213128b4545d6c5dbb8b12b5e'
     changed = {path for path in revision['source_code_sha256']
                if revision['source_code_sha256'][path] != revision['target_code_sha256'][path]}
     assert changed == {'rawfeat/cli.py', 'rawfeat/identity.py', 'rawfeat/training.py'}
+
+
+def test_historical_migration_cannot_authorize_v2_source():
+    from rawfeat.identity import GPU_RESUME_REVISION, ROOT
+    from rawfeat.validation import file_digest
+    revision = json.loads(GPU_RESUME_REVISION.read_text())
+    saved = {'code_sha256': revision['source_code_sha256'], 'cuda_visible_devices': '1'}
+    current = {'code_sha256': {str(p.relative_to(ROOT)): file_digest(p)
+                               for p in sorted((ROOT/'rawfeat').glob('*.py'))}, 'cuda_visible_devices': '3'}
+    with pytest.raises(RuntimeError, match='code_sha256'):
+        check_resume_identity(saved, current, allow_gpu_change=True)
